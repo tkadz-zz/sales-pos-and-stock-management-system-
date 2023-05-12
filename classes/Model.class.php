@@ -4,6 +4,27 @@
 
 class Model extends Dbh{
 
+    protected function GetAmountByPaymentType($payementType, $day){
+        $sql = "SELECT * FROM payment WHERE dateAdded LIKE ? and paymentType LIKE ?";
+        $stmt = $this->con()->prepare($sql);
+        $stmt->execute([$day, $payementType]);
+        return $stmt->fetchAll();
+    }
+
+
+    protected function updateStockToPhysicalQuantities($uid){
+        $rows = $this->GetStockTakeChildByUID($uid);
+        foreach ($rows as $row){
+            $stockID = $row['stockID'];
+            $newQ = $row['stockPhysicalQuantity'];
+            $sql = "UPDATE stock SET newDQuantity=?, quantity=? WHERE id=?";
+            $stmt = $this->con()->prepare($sql);
+            if(!$stmt->execute([$newQ, $newQ, $stockID])){
+                $this->opps();
+            }
+        }
+    }
+
 
     protected function duplicateRemover($rows, $column){
         $row_array = array();
@@ -58,19 +79,21 @@ class Model extends Dbh{
         foreach ($rows as $row){
             $name = $row['name'];
             $DBNetQ = $row['newDQuantity'];
+            $stockID = $row['id'];
             $DBGrossQ = $row['quantity'];
             $buyingPrice = $row['buyingPrice'];
             $sellingPrice = $row['sellingPrice'];
 
-            $sql1 = "INSERT INTO stockTakeChild(uid, stockName, stockDBNetQuantity, stockDBGrossQuantity, stockPhysicalQuantity, stockBuyingPrice, stockSellingPrice, status) VALUES (?,?,?,?,?,?,?,?)";
+            $sql1 = "INSERT INTO stockTakeChild(uid, stockID, stockName, stockDBNetQuantity, stockDBGrossQuantity, stockPhysicalQuantity, stockBuyingPrice, stockSellingPrice, status) VALUES (?,?,?,?,?,?,?,?,?)";
             $stmt1 = $this->con()->prepare($sql1);
-            if(!$stmt1->execute([$randomStr, $name, $DBNetQ, $DBGrossQ, $zero, $buyingPrice, $sellingPrice, $zero])){
+            if(!$stmt1->execute([$randomStr, $stockID, $name, $DBNetQ, $DBGrossQ, $zero, $buyingPrice, $sellingPrice, $zero])){
                 $this->opps();
             }
         }
 
+        //below code has been updated to use function $this->updateStockToPhysicalQuantities();
         //reset stock to match existing stock thus everything back to zero and start new transactions
-        $this->newDay();
+        //$this->newDay();
 
 
         $_SESSION['type'] = 's';
@@ -117,7 +140,7 @@ class Model extends Dbh{
         if($currency == 'usd'){
             $newPrice = $newPriceD;
         }else{
-            if($currency == 'ecocash' || $currency == 'card'){
+            if($currency == 'ecocash rtgs' || $currency == 'card rtgs'){
                 $currency = 'rtgs';
             }
             $sqlr = "SELECT * FROM rates WHERE currency=?";
@@ -326,7 +349,7 @@ class Model extends Dbh{
                     </script>";
         }else {
 
-            $payMethod = "ecocash";
+            $payMethod = "ecocash (rtgs)";
             $blank = '';
             $change = $paid - $total;
 
@@ -376,7 +399,7 @@ class Model extends Dbh{
                     </script>";
         }else {
 
-            $payMethod = "card";
+            $payMethod = "card (rtgs)";
             $blank = '';
             $change = $paid - $total;
 

@@ -2,6 +2,64 @@
 
 class Userview extends Model {
 
+    public function viewAmountByPaymentType($day){
+        $today = '%'.$day.'%';
+
+        $usdType = '%usd%';
+        $zarType = '%zar%';
+        $bondType = '%bond%';
+        $rtgsType = '%rtgs%';
+
+        $usdAmount = 0;
+        $zarAmount = 0;
+        $bondAmount = 0;
+        $rtgsAmount = 0;
+
+        $usd = $this->GetAmountByPaymentType($usdType, $today);
+        foreach ($usd as $usdRow) {
+            $usdAmount += $usdRow['price'];
+        }
+
+        $zar = $this->GetAmountByPaymentType($zarType, $today);
+        foreach ($zar as $zarRow) {
+            $zarAmount += $zarRow['price'];
+        }
+
+        $bond = $this->GetAmountByPaymentType($bondType, $today);
+        foreach ($bond as $bondRow) {
+            $bondAmount += $bondRow['price'];
+        }
+
+        $rtgs = $this->GetAmountByPaymentType($rtgsType, $today);
+        foreach ($rtgs as $rtgsRow) {
+            $rtgsAmount += $rtgsRow['price'];
+        }
+        ?>
+        <div class="card shadow-sm pt-2 border-bottom-secondary">
+            <div class="card-body">
+                <span>Totals (Per Rate)</span>
+                <table class="table table-bordered">
+                    <thead>
+                    <tr>
+                        <th>USD</th>
+                        <th>ZAR</th>
+                        <th>BOND</th>
+                        <th>RTGS</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>$<?= $usdAmount ?></td>
+                        <td>$<?= $zarAmount ?></td>
+                        <td>$<?= $bondAmount ?></td>
+                        <td>$<?= $rtgsAmount ?></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php
+    }
 
     public function viewDuplicateRemover(){
         $mainRows = $this->GetAllChildStockTake();
@@ -17,44 +75,49 @@ class Userview extends Model {
         $rows = $this->GetPaymentsByDate($today);
         ?>
 
-            <div class="alert alert-info">
-                <span class="mb-3">Report Date: <span class="text-dark"><b><?= $this->dateToDay($day) ?></b></span></span>
-            </div>
-        <div class="-d-flex -justify-content-between col-md-12">
+        <div class="alert alert-info">
+            <span class="mb-3">Report Date: <span class="text-dark"><b><?= $this->dateToDay($day) ?></b></span></span>
+        </div>
+
+        <?php
+        $this->viewAmountByPaymentType($day);
+        ?>
+
+        <div class="-d-flex -justify-content-between col-md-12 pt-4 shadow-sm">
             <table class="table table-bordered" id="dataTable">
                 <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>TransID(Name)</th>
-                        <th>Quantities</th>
-                        <th>Type</th>
-                        <th>Amount</th>
-                        <th>Date</th>
-                    </tr>
+                <tr>
+                    <th>#</th>
+                    <th>TransID(Name)</th>
+                    <th>Quantities</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                </tr>
                 </thead>
-            <tbody>
-            <?php
-            $s=0;
-            foreach ($rows as $row) {
-                $stockRows = $this->GetStockByID($row['itemID']);
-                if(count($stockRows) > 0){
-                    $itemName = $row['transactionID']  .'('.$stockRows[0]['name'] .')';
-                }else{
-                    $itemName = $row['transactionID'];
+                <tbody>
+                <?php
+                $s=0;
+                foreach ($rows as $row) {
+                    $stockRows = $this->GetStockByID($row['itemID']);
+                    if(count($stockRows) > 0){
+                        $itemName = $row['transactionID']  .'('.$stockRows[0]['name'] .')';
+                    }else{
+                        $itemName = $row['transactionID'];
+                    }
+                    ?>
+                    <tr>
+                        <td><?= $s+=1 ?></td>
+                        <td><?= $itemName ?></td>
+                        <td><?= $row['quantity'] ?></td>
+                        <td><?= $row['paymentType'] ?></td>
+                        <td>$<?= $row['price'] ?></td>
+                        <td><?= $this->dateTimeToDay($row['dateAdded']) ?></td>
+                    </tr>
+                    <?php
                 }
-            ?>
-            <tr>
-                <td><?= $s+=1 ?></td>
-                <td><?= $itemName ?></td>
-                <td><?= $row['quantity'] ?></td>
-                <td><?= $row['paymentType'] ?></td>
-                <td>$<?= $row['price'] ?></td>
-                <td><?= $this->dateTimeToDay($row['dateAdded']) ?></td>
-            </tr>
-            <?php
-                }
-            ?>
-            </tbody>
+                ?>
+                </tbody>
             </table>
         </div>
         <?php
@@ -304,6 +367,7 @@ class Userview extends Model {
             if(count($this->GetPendingMainStockTakeByStatusAndUID(0, $uid)) <= 0 ){
                 //Update Main Stock Take table status to one to remove the pending status
                 $this->updatestockMainStatus($uid);
+                $this->updateStockToPhysicalQuantities($uid);
                 ?>
                 <div class="col-md-6">
                     <div class="card">
@@ -443,7 +507,7 @@ class Userview extends Model {
             //no stocktake available
             ?>
             <br>
-            <a onclick="return confirm('You are about to start a new stock take session. NOTE: Total inventory for each product will be updated to match closing inventory of that product. Proceed anyway?')" href="../includes/additional.inc.php?action=newStockTake" class="btn btn-outline-primary btn-sm"> New Stock take <span class="fa fa-chevron-circle-right"></span></a>
+            <a onclick="return confirm('You are about to start a new stock take session. NOTE: Opening stock inventory for each product will be updated to match physical inventory that you are going to capture. Proceed anyway?')" href="../includes/additional.inc.php?action=newStockTake" class="btn btn-outline-primary btn-sm"> New Stock take <span class="fa fa-chevron-circle-right"></span></a>
             <?php
         }
 
@@ -576,8 +640,8 @@ class Userview extends Model {
                                     <option value="usd">Cash USD</option>
                                     <option value="bond">Cash BOND</option>
                                     <option value="zar">Cash ZAR</option>
-                                    <option value="ecocash">Rtgs ECOCASH</option>
-                                    <option value="card">Rtgs CARD</option>
+                                    <option value="ecocash rtgs">Rtgs ECOCASH</option>
+                                    <option value="card rtgs">Rtgs CARD</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -1374,13 +1438,13 @@ class Userview extends Model {
             <tr>
                 <td><?php echo $s ?> </td>
                 <?php
+                if($row['quantity'] > 0){
+                    $bd = 'success';
+                }
+                else{
+                    $bd = 'danger';
+                }
                 if($_SESSION['role'] == 'admin'){
-                    if($row['quantity'] > 0){
-                        $bd = 'success';
-                    }
-                    else{
-                        $bd = 'danger';
-                    }
                     ?>
                     <td><a class="text-<?= $bd ?>" href="stockDetails.php?itemID=<?php echo $row['id'] ?>"><?php echo $row["name"] ?></a></td>
                     <?php
