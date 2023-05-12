@@ -4,7 +4,7 @@ class Dbh{
   private $host = "localhost";
   private $user = "root";
   private $pwd = "";
-  private $dbName = "clientStockSystem";
+  private $dbName = "pepsheen";
 
 
   protected function con(){
